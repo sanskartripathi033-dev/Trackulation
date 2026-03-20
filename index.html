@@ -1,0 +1,1219 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="Trackulation" />
+    <meta name="theme-color" content="#FF80AB" />
+    <title>Trackulation 🌸</title>
+
+    <!-- INLINE SERVICE WORKER via blob — works from a single HTML file, no server needed -->
+    <script>
+        (function () {
+            if (!('serviceWorker' in navigator)) return;
+            const SW_CODE = `
+const CACHE = 'trackulation-v1';
+self.addEventListener('install', e => {
+  self.skipWaiting();
+});
+self.addEventListener('activate', e => {
+  e.waitUntil(self.clients.claim());
+});
+self.addEventListener('fetch', e => {
+  e.respondWith(
+    caches.open(CACHE).then(cache =>
+      cache.match(e.request).then(cached => {
+        if (cached) return cached;
+        return fetch(e.request).then(resp => {
+          cache.put(e.request, resp.clone());
+          return resp;
+        }).catch(() => cached);
+      })
+    )
+  );
+});
+`;
+            const blob = new Blob([SW_CODE], { type: 'application/javascript' });
+            const swUrl = URL.createObjectURL(blob);
+            navigator.serviceWorker.register(swUrl, { scope: '/' }).catch(() => { });
+        })();
+    </script>
+
+    <!-- INLINE MANIFEST via link — gives "Add to Home Screen" a proper icon + name -->
+    <script>
+        (function () {
+            const manifest = {
+                name: "Trackulation",
+                short_name: "Trackulation",
+                description: "Privacy-first women's health tracker",
+                start_url: ".",
+                display: "standalone",
+                background_color: "#FFF5F5",
+                theme_color: "#FF80AB",
+                orientation: "portrait",
+                icons: [{
+                    src: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'%3E%3Ccircle cx='96' cy='96' r='96' fill='%23FFD1DC'/%3E%3Ccircle cx='56' cy='60' r='28' fill='%23FF80AB' opacity='.85'/%3E%3Ccircle cx='136' cy='60' r='28' fill='%23FF80AB' opacity='.85'/%3E%3Ccircle cx='56' cy='60' r='16' fill='%23FF80AB' opacity='.5'/%3E%3Ccircle cx='136' cy='60' r='16' fill='%23FF80AB' opacity='.5'/%3E%3Ccircle cx='96' cy='114' r='58' fill='%23FF80AB'/%3E%3Ccircle cx='78' cy='104' r='11' fill='white' opacity='.9'/%3E%3Ccircle cx='114' cy='104' r='11' fill='white' opacity='.9'/%3E%3Ccircle cx='81' cy='107' r='6' fill='%23333'/%3E%3Ccircle cx='111' cy='107' r='6' fill='%23333'/%3E%3Cellipse cx='96' cy='122' rx='18' ry='13' fill='%23FF80AB' opacity='.6'/%3E%3Cellipse cx='96' cy='126' rx='9' ry='7' fill='%23e64980'/%3E%3C/svg%3E",
+                    sizes: "192x192",
+                    type: "image/svg+xml",
+                    purpose: "any maskable"
+                }]
+            };
+            const blob = new Blob([JSON.stringify(manifest)], { type: 'application/manifest+json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('link');
+            link.rel = 'manifest'; link.href = url;
+            document.head.appendChild(link);
+        })();
+    </script>
+
+    <style>
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            -webkit-tap-highlight-color: transparent;
+            touch-action: manipulation
+        }
+
+        :root {
+            --pink: #FF80AB;
+            --rose: #E91E63;
+            --deep: #AD1457;
+            --cream: #FFF5F5;
+            --petal: #FFD1DC;
+            --soft: #FCE4EC;
+            --text: #3d2030;
+            --muted: #9e6b7e;
+            --white: #fff;
+            --green: #4CAF50;
+        }
+
+        html,
+        body {
+            height: 100%;
+            overflow: hidden;
+            background: var(--cream);
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            color: var(--text)
+        }
+
+        #app {
+            height: 100dvh;
+            display: flex;
+            flex-direction: column;
+            max-width: 430px;
+            margin: 0 auto;
+            position: relative;
+            overflow: hidden;
+            background: var(--cream)
+        }
+
+        .header {
+            background: white;
+            border-bottom: 1.5px solid var(--petal);
+            padding: 12px 16px 10px;
+            flex-shrink: 0;
+            box-shadow: 0 2px 12px rgba(255, 128, 171, 0.12);
+            z-index: 10
+        }
+
+        .header-inner {
+            display: flex;
+            align-items: center;
+            justify-content: space-between
+        }
+
+        .logo-row {
+            display: flex;
+            align-items: center;
+            gap: 10px
+        }
+
+        .app-name {
+            font-size: 17px;
+            font-weight: 800;
+            color: var(--deep)
+        }
+
+        .app-date {
+            font-size: 10px;
+            color: #bbb;
+            margin-top: 1px
+        }
+
+        .phase-badge {
+            padding: 5px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 700;
+            border: 1.5px solid
+        }
+
+        .scroll-area {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
+            -webkit-overflow-scrolling: touch;
+            padding: 14px 14px 80px
+        }
+
+        .card {
+            background: white;
+            border-radius: 22px;
+            padding: 18px;
+            border: 1.5px solid var(--petal);
+            margin-bottom: 14px;
+            box-shadow: 0 3px 16px rgba(255, 128, 171, 0.08)
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 700;
+            color: var(--deep);
+            margin-bottom: 3px
+        }
+
+        .card-sub {
+            font-size: 12px;
+            color: var(--muted);
+            margin-bottom: 14px
+        }
+
+        .btn {
+            border: none;
+            border-radius: 20px;
+            padding: 11px 20px;
+            font-weight: 700;
+            font-size: 13px;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--pink), var(--rose));
+            color: white;
+            width: 100%
+        }
+
+        .btn-primary:active {
+            transform: scale(0.97);
+            opacity: 0.9
+        }
+
+        .btn-success {
+            background: var(--green);
+            color: white;
+            width: 100%
+        }
+
+        .btn-outline {
+            background: white;
+            border: 1.5px solid var(--petal);
+            color: var(--deep);
+            padding: 9px 16px;
+            border-radius: 14px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            font-family: inherit
+        }
+
+        input,
+        textarea,
+        select {
+            font-family: inherit;
+            outline: none;
+            -webkit-appearance: none
+        }
+
+        input[type=date],
+        input[type=text],
+        input[type=number],
+        textarea {
+            border: 1.5px solid var(--petal);
+            border-radius: 12px;
+            padding: 9px 12px;
+            font-size: 13px;
+            background: var(--cream);
+            color: var(--text);
+            width: 100%
+        }
+
+        input[type=date]:focus,
+        input[type=text]:focus,
+        textarea:focus {
+            border-color: var(--pink)
+        }
+
+        input[type=range] {
+            width: 100%;
+            accent-color: var(--pink);
+            height: 4px
+        }
+
+        .chip {
+            display: inline-block;
+            padding: 6px 11px;
+            border-radius: 20px;
+            font-size: 11px;
+            cursor: pointer;
+            border: 1.5px solid;
+            transition: all 0.15s;
+            margin: 3px;
+            font-family: inherit;
+            font-weight: 500
+        }
+
+        .chip.off {
+            border-color: var(--petal);
+            background: white;
+            color: var(--muted)
+        }
+
+        .chip.on {
+            border-color: var(--pink);
+            background: var(--petal);
+            color: var(--deep);
+            font-weight: 700
+        }
+
+        .chip.food-on {
+            border-color: var(--rose);
+            background: #FFDDE9;
+            color: var(--deep);
+            font-weight: 700
+        }
+
+        .progress-bar {
+            height: 8px;
+            background: var(--petal);
+            border-radius: 999px;
+            overflow: hidden;
+            margin-bottom: 12px
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, var(--pink), var(--rose));
+            border-radius: 999px;
+            transition: width 0.4s
+        }
+
+        .check-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 10px 13px;
+            border-radius: 13px;
+            border: 1.5px solid;
+            transition: all 0.2s;
+            margin-bottom: 7px;
+            cursor: pointer
+        }
+
+        .check-item.done {
+            background: var(--petal);
+            border-color: var(--pink)
+        }
+
+        .check-item.undone {
+            background: var(--cream);
+            border-color: var(--petal)
+        }
+
+        .check-box {
+            width: 21px;
+            height: 21px;
+            border-radius: 7px;
+            border: 2px solid;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+            transition: all 0.2s
+        }
+
+        .check-box.done {
+            background: var(--rose);
+            border-color: var(--rose);
+            color: white;
+            font-size: 12px
+        }
+
+        .check-box.undone {
+            background: white;
+            border-color: var(--petal)
+        }
+
+        .check-label {
+            font-size: 12px;
+            line-height: 1.4
+        }
+
+        .check-label.done {
+            text-decoration: line-through;
+            color: var(--deep);
+            font-weight: 600
+        }
+
+        .check-label.undone {
+            color: #555
+        }
+
+        .ayur-tag {
+            font-size: 9px;
+            background: #E8F5E9;
+            color: #388E3C;
+            padding: 2px 7px;
+            border-radius: 8px;
+            font-weight: 600;
+            margin-left: 5px
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 9px;
+            margin-bottom: 12px
+        }
+
+        .stat-box {
+            background: white;
+            border-radius: 15px;
+            padding: 12px 8px;
+            border: 1.5px solid var(--petal);
+            text-align: center
+        }
+
+        .stat-num {
+            font-size: 22px;
+            font-weight: 800;
+            color: var(--rose)
+        }
+
+        .stat-label {
+            font-size: 10px;
+            color: #aaa;
+            margin-top: 2px
+        }
+
+        .log-item {
+            background: var(--cream);
+            border-radius: 11px;
+            padding: 9px 13px;
+            margin-bottom: 6px;
+            border: 1px solid var(--petal)
+        }
+
+        .log-date {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--rose)
+        }
+
+        .log-detail {
+            font-size: 11px;
+            color: #666;
+            margin-top: 2px
+        }
+
+        .alert-box {
+            background: #FFDDE9;
+            border: 1px solid var(--rose);
+            border-radius: 11px;
+            padding: 10px 13px;
+            font-size: 11px;
+            color: var(--deep);
+            margin-top: 8px
+        }
+
+        .info-box {
+            background: var(--cream);
+            border-radius: 15px;
+            padding: 13px;
+            border: 1px solid var(--petal);
+            font-size: 12px;
+            color: #555;
+            line-height: 1.7;
+            margin-bottom: 12px
+        }
+
+        .next-period {
+            background: white;
+            border-radius: 15px;
+            padding: 12px 15px;
+            border: 1.5px solid var(--petal);
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-bottom: 12px
+        }
+
+        .section-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--deep);
+            margin-bottom: 7px
+        }
+
+        .cycle-row {
+            background: var(--cream);
+            border-radius: 11px;
+            padding: 9px 13px;
+            margin-bottom: 6px;
+            border: 1px solid var(--petal);
+            display: flex;
+            justify-content: space-between;
+            align-items: center
+        }
+
+        .cycle-len {
+            font-size: 18px;
+            font-weight: 800;
+            color: var(--deep)
+        }
+
+        .irr {
+            color: var(--rose) !important
+        }
+
+        .pattern-row {
+            background: var(--cream);
+            border-radius: 11px;
+            padding: 10px 13px;
+            margin-bottom: 7px;
+            border: 1px solid var(--petal);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 12px
+        }
+
+        .tag-count {
+            margin-left: auto;
+            background: var(--petal);
+            color: var(--deep);
+            padding: 2px 9px;
+            border-radius: 8px;
+            font-size: 10px;
+            font-weight: 700
+        }
+
+        .grid2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 9px;
+            margin-bottom: 12px
+        }
+
+        .quick-btn {
+            background: white;
+            border: 1.5px solid var(--petal);
+            border-radius: 15px;
+            padding: 14px 8px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.15s;
+            font-family: inherit;
+            width: 100%
+        }
+
+        .quick-btn:active {
+            transform: scale(0.96)
+        }
+
+        .quick-btn-pink {
+            background: linear-gradient(135deg, var(--petal), var(--pink));
+            border: none
+        }
+
+        .quick-btn-emoji {
+            font-size: 22px;
+            display: block;
+            line-height: 1
+        }
+
+        .quick-btn-label {
+            font-size: 11px;
+            font-weight: 600;
+            margin-top: 5px;
+            color: var(--deep)
+        }
+
+        .quick-btn-pink .quick-btn-label {
+            color: white
+        }
+
+        .bottom-nav {
+            position: fixed;
+            bottom: 0;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 100%;
+            max-width: 430px;
+            background: white;
+            border-top: 1.5px solid var(--petal);
+            display: flex;
+            justify-content: space-around;
+            padding: 7px 4px max(10px, env(safe-area-inset-bottom));
+            z-index: 20;
+            box-shadow: 0 -4px 20px rgba(255, 128, 171, 0.1)
+        }
+
+        .nav-btn {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 2px;
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 5px 7px;
+            border-radius: 13px;
+            transition: all 0.15s;
+            min-width: 48px;
+            font-family: inherit
+        }
+
+        .nav-btn.active {
+            background: var(--petal)
+        }
+
+        .nav-emoji {
+            font-size: 20px;
+            line-height: 1
+        }
+
+        .nav-label {
+            font-size: 9px;
+            font-weight: 400;
+            color: #bbb
+        }
+
+        .nav-btn.active .nav-label {
+            font-weight: 700;
+            color: var(--deep)
+        }
+
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(255, 209, 220, 0.88);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            backdrop-filter: blur(4px);
+            -webkit-backdrop-filter: blur(4px);
+            padding: 20px
+        }
+
+        .modal {
+            background: white;
+            border-radius: 24px;
+            padding: 28px 24px;
+            width: 100%;
+            max-width: 340px;
+            text-align: center;
+            box-shadow: 0 20px 60px rgba(255, 128, 171, 0.3)
+        }
+
+        .modal h2 {
+            color: var(--deep);
+            margin: 12px 0 5px;
+            font-size: 20px
+        }
+
+        .modal p {
+            color: #888;
+            font-size: 13px;
+            margin-bottom: 20px;
+            line-height: 1.6
+        }
+
+        .form-label {
+            font-size: 12px;
+            font-weight: 600;
+            color: var(--deep);
+            display: block;
+            text-align: left;
+            margin-bottom: 5px
+        }
+
+        .form-group {
+            margin-bottom: 14px;
+            text-align: left
+        }
+
+        .range-hints {
+            display: flex;
+            justify-content: space-between;
+            font-size: 10px;
+            color: #bbb;
+            margin-top: 3px
+        }
+
+        .phase-info-card {
+            border-radius: 18px;
+            padding: 14px 16px;
+            border: 1.5px solid;
+            margin-bottom: 12px
+        }
+
+        .phase-info-text {
+            font-size: 12px;
+            line-height: 1.65;
+            margin-top: 5px;
+            color: #555
+        }
+
+        .wheel-wrap {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 6px 0
+        }
+
+        .no-data {
+            text-align: center;
+            padding: 24px 16px;
+            color: #bbb;
+            font-size: 12px
+        }
+
+        .report-field {
+            margin-bottom: 10px
+        }
+
+        .privacy-note {
+            font-size: 11px;
+            color: #bbb;
+            text-align: center;
+            margin-top: 8px
+        }
+
+        /* offline banner */
+        #offline-bar {
+            display: none;
+            background: #333;
+            color: white;
+            text-align: center;
+            font-size: 11px;
+            padding: 5px;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 999
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(8px)
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0)
+            }
+        }
+
+        .page {
+            animation: fadeIn 0.22s ease
+        }
+
+        @media(prefers-reduced-motion:reduce) {
+            .page {
+                animation: none
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div id="offline-bar">📴 Offline mode — all data saved locally</div>
+    <div id="app">
+        <div class="header">
+            <div class="header-inner">
+                <div class="logo-row">
+                    <svg width="32" height="32" viewBox="0 0 48 48" fill="none" id="header-bear"></svg>
+                    <div>
+                        <div class="app-name">trackulation 🌸</div>
+                        <div class="app-date" id="header-date"></div>
+                    </div>
+                </div>
+                <div class="phase-badge" id="phase-badge"></div>
+            </div>
+        </div>
+        <div class="scroll-area" id="scroll-area"></div>
+        <nav class="bottom-nav" id="bottom-nav"></nav>
+    </div>
+
+    <!-- SETUP MODAL -->
+    <div class="modal-overlay" id="setup-modal" style="display:none">
+        <div class="modal">
+            <svg width="56" height="56" viewBox="0 0 48 48" fill="none" id="modal-bear"></svg>
+            <h2>Namaste! 🌸</h2>
+            <p>Trackulation mein aapka swagat hai!<br />Chaliye shuru karte hain.</p>
+            <div class="form-group">
+                <label class="form-label">Aakhri period kab aaya? 📅</label>
+                <input type="date" id="setup-date" max="" />
+            </div>
+            <div class="form-group">
+                <label class="form-label" id="setup-len-label">Cycle kitne din ka hai? (28 din)</label>
+                <input type="range" min="21" max="40" value="28" id="setup-len"
+                    oninput="document.getElementById('setup-len-label').textContent='Cycle kitne din ka hai? ('+this.value+' din)'" />
+                <div class="range-hints"><span>21 din</span><span>28 (avg)</span><span>40 din</span></div>
+            </div>
+            <button class="btn btn-primary" onclick="saveSetup()">Shuru Karein 🧸</button>
+        </div>
+    </div>
+
+    <script>
+        // ── OFFLINE DETECTION ──────────────────────────────────────────────────────
+        window.addEventListener('online', () => { document.getElementById('offline-bar').style.display = 'none' });
+        window.addEventListener('offline', () => { document.getElementById('offline-bar').style.display = 'block' });
+        if (!navigator.onLine) document.getElementById('offline-bar').style.display = 'block';
+
+        // ── CACHE ENTIRE PAGE IN LOCALSTORAGE AS FALLBACK ─────────────────────────
+        // This is the key trick for single-file offline: store the full HTML in
+        // localStorage on first load, then a tiny SW serves it back when offline.
+        (function () {
+            try {
+                const key = 'trackulation_page_cache';
+                const html = document.documentElement.outerHTML;
+                // Only save once to avoid quota issues
+                if (!localStorage.getItem(key)) {
+                    localStorage.setItem(key, html);
+                }
+            } catch (e) { }
+        })();
+
+        // ── DATA LAYER ─────────────────────────────────────────────────────────────
+        const KEYS = { settings: 'tk_settings', cycles: 'tk_cycles', symptoms: 'tk_symptoms', checklist: 'tk_checklist' };
+        function load(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d } catch { return d } }
+        function save(k, v) { try { localStorage.setItem(k, JSON.stringify(v)) } catch { } }
+
+        let settings = load(KEYS.settings, {});
+        let cycles = load(KEYS.cycles, []);
+        let symptoms = load(KEYS.symptoms, []);
+        let checklist = load(KEYS.checklist, {});
+        let currentTab = 'home';
+
+        // ── PHASES ─────────────────────────────────────────────────────────────────
+        const PHASES = {
+            menstrual: { name: 'Menstrual', hi: 'Masik Dharm 🌸', color: '#FF80AB', bg: '#FFD1DC', emoji: '🌸', info: 'Aapka body rest maang raha hai. Garam paani, gentle movement, aur iron-rich food pe focus karein.' },
+            follicular: { name: 'Follicular', hi: 'Utthan Kaal ✨', color: '#F06292', bg: '#FCE4EC', emoji: '✨', info: 'Energy badhne lag rahi hai! Naye projects start karo, gym jao, creativity unleash karo!' },
+            ovulation: { name: 'Ovulation', hi: 'Ovulation 🌺', color: '#E91E63', bg: '#FFDDE9', emoji: '🌺', info: 'Peak energy aur confidence! Important decisions aur social connections ka best time!' },
+            luteal: { name: 'Luteal', hi: 'Luteal Kaal 🍵', color: '#AD1457', bg: '#F8BBD0', emoji: '🍵', info: 'Body slowdown mode mein. Magnesium lo, jaldi soyo, aur journaling karo.' }
+        };
+        function getPhase(d) { return d <= 5 ? 'menstrual' : d <= 13 ? 'follicular' : d <= 16 ? 'ovulation' : 'luteal' }
+        function getDayCycle(last, len) {
+            const t = new Date(); t.setHours(0, 0, 0, 0);
+            const s = new Date(last); s.setHours(0, 0, 0, 0);
+            const diff = Math.floor((t - s) / 86400000);
+            return ((diff % (len || 28)) + 1);
+        }
+        function predict(cycs) {
+            if (!cycs || !cycs.length) return { avg: 28, irregular: false, next: null };
+            const lens = cycs.map(c => c.length).filter(l => l >= 15 && l <= 45);
+            if (!lens.length) return { avg: 28, irregular: false, next: null };
+            const avg = Math.round(lens.reduce((a, b) => a + b, 0) / lens.length);
+            const irregular = lens.some(l => l < 21 || l > 35);
+            const last = cycs[cycs.length - 1];
+            const next = last ? new Date(new Date(last.startDate).getTime() + avg * 86400000) : null;
+            return { avg, irregular, next };
+        }
+
+        // ── CHECKLISTS ─────────────────────────────────────────────────────────────
+        const LISTS = {
+            menstrual: [
+                { id: 'm1', t: 'Ajwain (Carom) water peeyein 🫖', a: true },
+                { id: 'm2', t: 'Iron-rich foods: Palak, Dates, Rajma 🥬' },
+                { id: 'm3', t: '15-min gentle stretch ya yoga 🧘‍♀️' },
+                { id: 'm4', t: 'Heating pad use karein 🌡️' },
+                { id: 'm5', t: 'Ginger-Haldi chai for cramp relief ☕', a: true },
+                { id: 'm6', t: 'Extra rest & sleep priority 😴' }
+            ],
+            follicular: [
+                { id: 'f1', t: 'High-intensity workout try karein 💪' },
+                { id: 'f2', t: 'Creative brainstorming session 🎨' },
+                { id: 'f3', t: 'Naye projects ya decisions lein 🚀' },
+                { id: 'f4', t: 'Methi seeds with warm water 🌿', a: true },
+                { id: 'f5', t: 'Protein-rich nashta khayein 🥚' },
+                { id: 'f6', t: 'Social plans banayein - energy high! ✨' }
+            ],
+            ovulation: [
+                { id: 'o1', t: 'Peak energy workout session 🏃‍♀️' },
+                { id: 'o2', t: 'Important meetings ya presentations 📊' },
+                { id: 'o3', t: 'Shatavari supplement consider karein 🌿', a: true },
+                { id: 'o4', t: 'Hydration boost - extra paani piyo 💧' },
+                { id: 'o5', t: 'Creative & communication tasks 🎯' }
+            ],
+            luteal: [
+                { id: 'l1', t: 'Magnesium snacks: Dark choc, Almonds 🍫' },
+                { id: 'l2', t: 'Early sleep schedule follow karein 🌙' },
+                { id: 'l3', t: 'Journaling for PMS feelings 📓' },
+                { id: 'l4', t: 'Ashwagandha chai for stress relief 🍵', a: true },
+                { id: 'l5', t: 'Gentle walk ya yoga - intense avoid 🚶‍♀️' },
+                { id: 'l6', t: 'Screen time reduce evenings mein 📱' }
+            ]
+        };
+        const SYMPTOMS = ['Cramping 😣', 'Bloating 🫃', 'Headache 🤕', 'Fatigue 😴', 'Mood Swings 😤', 'Breast Tenderness 💗', 'Backache 😩', 'Nausea 🤢', 'Acne 😬', 'Food Cravings 🍕', 'Anxiety 😰', 'Insomnia 😶'];
+        const FOODS = ['Salty food 🧂', 'Caffeine ☕', 'Sugar 🍬', 'Dairy 🥛', 'Spicy food 🌶️', 'Processed food 🍔', 'Alcohol 🍷', 'Gluten 🍞'];
+
+        // ── BEAR SVG ───────────────────────────────────────────────────────────────
+        function bearSVG(color = '#FF80AB') {
+            return `<circle cx="14" cy="12" r="7" fill="${color}" opacity="0.85"/>
+<circle cx="34" cy="12" r="7" fill="${color}" opacity="0.85"/>
+<circle cx="14" cy="12" r="4" fill="${color}" opacity="0.5"/>
+<circle cx="34" cy="12" r="4" fill="${color}" opacity="0.5"/>
+<circle cx="24" cy="26" r="15" fill="${color}"/>
+<circle cx="19" cy="23" r="3" fill="white" opacity="0.9"/>
+<circle cx="29" cy="23" r="3" fill="white" opacity="0.9"/>
+<circle cx="20" cy="24" r="1.5" fill="#333"/>
+<circle cx="30" cy="24" r="1.5" fill="#333"/>
+<ellipse cx="24" cy="29" rx="5" ry="3.5" fill="#FF80AB" opacity="0.6"/>
+<ellipse cx="24" cy="30" rx="2" ry="1.5" fill="#e64980"/>
+<path d="M20 31 Q24 34 28 31" stroke="#e64980" stroke-width="1.2" fill="none" stroke-linecap="round"/>
+<ellipse cx="10" cy="36" rx="5" ry="6" fill="${color}" opacity="0.7"/>
+<ellipse cx="38" cy="36" rx="5" ry="6" fill="${color}" opacity="0.7"/>`;
+        }
+
+        // ── PHASE WHEEL ────────────────────────────────────────────────────────────
+        function phaseWheelSVG(dayOfCycle, cycleLen, phase) {
+            const segs = [
+                { p: 'menstrual', s: 1, e: 5, label: '🌸 Masik', color: '#FF80AB' },
+                { p: 'follicular', s: 6, e: 13, label: '✨ Utthan', color: '#F48FB1' },
+                { p: 'ovulation', s: 14, e: 16, label: '🌺 Ovul.', color: '#F06292' },
+                { p: 'luteal', s: 17, e: cycleLen, label: '🍵 Luteal', color: '#E91E63' }
+            ];
+            const cx = 150, cy = 150;
+            function p2c(ang, rad) { const a = ang * Math.PI / 180; return { x: cx + rad * Math.cos(a), y: cy + rad * Math.sin(a) } }
+            function arc(sa, ea, ri, ro) {
+                const s1 = p2c(sa + 1, ro), e1 = p2c(ea - 1, ro), s2 = p2c(ea - 1, ri), e2 = p2c(sa + 1, ri);
+                const lg = ea - sa > 180 ? 1 : 0;
+                return `M${s1.x} ${s1.y} A${ro} ${ro} 0 ${lg} 1 ${e1.x} ${e1.y} L${s2.x} ${s2.y} A${ri} ${ri} 0 ${lg} 0 ${e2.x} ${e2.y}Z`;
+            }
+            let paths = '', labels = '';
+            segs.forEach(seg => {
+                const sa = ((seg.s - 1) / cycleLen) * 360 - 90, ea = (seg.e / cycleLen) * 360 - 90;
+                const isCur = seg.p === phase;
+                paths += `<path d="${arc(sa, ea, 64, 118)}" fill="${isCur ? seg.color : seg.color + '44'}" stroke="white" stroke-width="2"/>`;
+                const mid = (sa + ea) / 2, lp = p2c(mid, 91);
+                labels += `<text x="${lp.x}" y="${lp.y}" text-anchor="middle" dominant-baseline="central" font-size="8.5" fill="${isCur ? 'white' : '#FF80AB'}" font-weight="${isCur ? 700 : 500}">${seg.label}</text>`;
+            });
+            const na = ((dayOfCycle - 1) / cycleLen) * 360 - 90;
+            const nt = p2c(na, 104), nb = p2c(na + 180, 17);
+            const ph = PHASES[phase];
+            return `<svg width="100%" viewBox="0 0 300 300" style="max-width:280px">
+<circle cx="${cx}" cy="${cy}" r="128" fill="#FFF5F5" stroke="#FFD1DC" stroke-width="1.5"/>
+${paths}
+${Array.from({ length: cycleLen }, (_, i) => { const a = (i / cycleLen) * 360 - 90, i1 = p2c(a, 119), o1 = p2c(a, 125); return `<line x1="${i1.x}" y1="${i1.y}" x2="${o1.x}" y2="${o1.y}" stroke="#FFD1DC" stroke-width="1"/>`; }).join('')}
+${labels}
+<circle cx="${cx}" cy="${cy}" r="61" fill="white" stroke="#FFD1DC" stroke-width="1.5"/>
+<text x="${cx}" y="${cy - 20}" text-anchor="middle" font-size="26" dominant-baseline="central">${ph.emoji}</text>
+<text x="${cx}" y="${cy + 6}" text-anchor="middle" font-size="22" font-weight="800" fill="${ph.color}" dominant-baseline="central">${dayOfCycle}</text>
+<text x="${cx}" y="${cy + 22}" text-anchor="middle" font-size="9" fill="#AD1457" dominant-baseline="central">Day of Cycle</text>
+<line x1="${nb.x}" y1="${nb.y}" x2="${nt.x}" y2="${nt.y}" stroke="#AD1457" stroke-width="2.5" stroke-linecap="round"/>
+<circle cx="${cx}" cy="${cy}" r="6" fill="#AD1457" stroke="white" stroke-width="2"/>
+<circle cx="${cx}" cy="${cy}" r="2.5" fill="white"/>
+</svg>`;
+        }
+
+        // ── STATE ──────────────────────────────────────────────────────────────────
+        let selSymptoms = [], selFoods = [], symIntensity = 3, symNote = '';
+        let newCycleStart = '', newCycleEnd = '';
+        let reportName = '', reportAge = '';
+
+        function getDayAndPhase() {
+            if (!settings.lastPeriod) return { day: 1, phase: 'menstrual' };
+            const day = getDayCycle(settings.lastPeriod, settings.cycleLength || 28);
+            return { day, phase: getPhase(day) };
+        }
+
+        // ── TABS ───────────────────────────────────────────────────────────────────
+        const TABS = [
+            { id: 'home', e: '🌸', l: 'Home' },
+            { id: 'checklist', e: '🧸', l: 'Self-Care' },
+            { id: 'symptoms', e: '✨', l: 'Symptoms' },
+            { id: 'cycles', e: '📅', l: 'Cycles' },
+            { id: 'intel', e: '🔍', l: 'Insights' },
+            { id: 'doctor', e: '🏥', l: 'Doctor' }
+        ];
+
+        function renderNav() {
+            document.getElementById('bottom-nav').innerHTML = TABS.map(t => `
+    <button class="nav-btn${currentTab === t.id ? ' active' : ''}" onclick="switchTab('${t.id}')">
+      <span class="nav-emoji">${t.e}</span>
+      <span class="nav-label">${t.l}</span>
+    </button>`).join('');
+        }
+
+        function renderHeader() {
+            document.getElementById('header-bear').innerHTML = bearSVG('#FF80AB');
+            document.getElementById('modal-bear').innerHTML = bearSVG('#FF80AB');
+            const now = new Date();
+            document.getElementById('header-date').textContent = now.toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long' });
+            const { day, phase } = getDayAndPhase();
+            const ph = PHASES[phase];
+            const badge = document.getElementById('phase-badge');
+            badge.textContent = ph.emoji + ' ' + ph.name;
+            badge.style.color = ph.color;
+            badge.style.borderColor = ph.color + '44';
+            badge.style.background = ph.bg;
+        }
+
+        // ── PAGES ──────────────────────────────────────────────────────────────────
+        function renderPage() {
+            const sa = document.getElementById('scroll-area');
+            sa.innerHTML = '';
+            const { day, phase } = getDayAndPhase();
+            const ph = PHASES[phase];
+            const pred = predict(cycles);
+
+            if (currentTab === 'home') {
+                let h = `<div class="page">`;
+                h += `<div class="card"><div style="text-align:center;margin-bottom:6px"><div class="section-label" style="margin-bottom:0">Aaj ka Phase 🌸</div></div>`;
+                if (settings.lastPeriod) {
+                    h += `<div class="wheel-wrap">${phaseWheelSVG(day, settings.cycleLength || 28, phase)}</div>`;
+                    h += `<div style="text-align:center;margin-top:6px"><div style="font-size:14px;font-weight:700;color:${ph.color}">${ph.hi}</div><div style="font-size:11px;color:var(--muted);margin-top:2px">Phase ${day} / ${settings.cycleLength || 28}</div></div>`;
+                } else {
+                    h += `<div class="no-data">Setup karein pehle<br><button class="btn btn-primary" style="width:auto;margin-top:12px;padding:10px 24px" onclick="document.getElementById('setup-modal').style.display='flex'">Setup Karein 🧸</button></div>`;
+                }
+                h += `</div>`;
+                h += `<div class="phase-info-card" style="background:${ph.bg};border-color:${ph.color}44"><div style="font-size:13px;font-weight:700;color:${ph.color}">${ph.hi}</div><div class="phase-info-text">${ph.info}</div></div>`;
+                h += `<div class="stat-grid">
+      <div class="stat-box"><div class="stat-num" style="color:var(--rose)">${day}</div><div class="stat-label">Cycle Day</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:var(--pink)">${pred.avg}</div><div class="stat-label">Avg Cycle</div></div>
+      <div class="stat-box"><div class="stat-num" style="color:var(--deep)">${symptoms.length}</div><div class="stat-label">Logs</div></div>
+    </div>`;
+                if (pred.next) {
+                    const daysLeft = Math.max(0, Math.round((pred.next - new Date()) / 86400000));
+                    h += `<div class="next-period"><span style="font-size:26px">📅</span><div><div style="font-size:12px;font-weight:700;color:var(--deep)">Agla Period</div><div style="font-size:14px;color:var(--rose);font-weight:700">${pred.next.toLocaleDateString('en-IN', { day: 'numeric', month: 'long' })}</div><div style="font-size:10px;color:#aaa">${daysLeft} din baaki</div></div>${pred.irregular ? `<div style="margin-left:auto;background:#FFDDE9;border-radius:8px;padding:4px 8px;font-size:10px;color:var(--rose);font-weight:700">⚠️ Irregular</div>` : ''}</div>`;
+                }
+                h += `<div class="grid2">
+      <button class="quick-btn" onclick="switchTab('symptoms')"><span class="quick-btn-emoji">✨</span><div class="quick-btn-label">Log Symptoms</div></button>
+      <button class="quick-btn quick-btn-pink" onclick="switchTab('checklist')"><span class="quick-btn-emoji">🧸</span><div class="quick-btn-label">Self-Care</div></button>
+    </div></div>`;
+                sa.innerHTML = h;
+            }
+
+            else if (currentTab === 'checklist') {
+                const today = new Date().toISOString().split('T')[0];
+                const key = today + '_' + phase;
+                const checked = checklist[key] || [];
+                const items = LISTS[phase] || [];
+                const prog = items.length ? Math.round(checked.length / items.length * 100) : 0;
+                let h = `<div class="page"><div class="card"><div class="card-title">🧸 Aaj ki Self-Care</div><div class="card-sub">${ph.hi} ke liye</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><span style="font-size:11px;color:var(--deep);font-weight:600">Progress 🌸</span><span style="font-size:11px;font-weight:700;color:var(--rose)">${checked.length}/${items.length}</span></div>
+      <div class="progress-bar"><div class="progress-fill" style="width:${prog}%"></div></div>`;
+                items.forEach(item => {
+                    const done = checked.includes(item.id);
+                    h += `<div class="check-item ${done ? 'done' : 'undone'}" onclick="toggleCheck('${key}','${item.id}')">
+        <div class="check-box ${done ? 'done' : 'undone'}">${done ? '✓' : ''}</div>
+        <span class="check-label ${done ? 'done' : 'undone'}">${item.t}${item.a ? '<span class="ayur-tag">Ayurvedic 🌿</span>' : ''}</span>
+      </div>`;
+                });
+                h += `</div></div>`;
+                sa.innerHTML = h;
+            }
+
+            else if (currentTab === 'symptoms') {
+                let h = `<div class="page"><div class="card"><div class="card-title">✨ Symptom Logger</div><div class="card-sub">Aaj kaisi feel ho rahi hai?</div>
+      <div class="section-label">🧸 Symptoms aaj</div>
+      <div style="margin-bottom:12px">${SYMPTOMS.map(s => `<button class="chip ${selSymptoms.includes(s) ? 'on' : 'off'}" onclick="toggleSym(this,'${s.replace(/'/g, "\\'")}','sym')">${s}</button>`).join('')}</div>
+      <div class="section-label">🍕 Trigger Foods</div>
+      <div style="margin-bottom:12px">${FOODS.map(f => `<button class="chip ${selFoods.includes(f) ? 'food-on' : 'off'}" onclick="toggleSym(this,'${f.replace(/'/g, "\\'")}','food')">${f}</button>`).join('')}</div>
+      <div class="section-label">🌡️ Intensity: ${['', 'Bahut Halka', 'Halka', 'Theek', 'Tez', 'Bahut Tez'][symIntensity]}</div>
+      <input type="range" min="1" max="5" value="${symIntensity}" oninput="updateIntensity(this.value)" style="margin-bottom:4px">
+      <div class="range-hints"><span>1</span><span>2</span><span>3</span><span>4</span><span>5</span></div>
+      <textarea id="sym-note" rows="2" placeholder="Koi extra notes? 📝" style="margin:10px 0 12px;resize:none">${symNote}</textarea>
+      <button class="btn btn-primary" id="sym-save-btn" onclick="saveSymptom()">Log Karo 🧸</button>`;
+                if (symptoms.length) {
+                    h += `<div style="margin-top:14px"><div class="section-label">Recent Logs 📋</div>`;
+                    symptoms.slice(0, 3).forEach(s => {
+                        h += `<div class="log-item"><div class="log-date">${s.date}</div><div class="log-detail">${s.symptoms.slice(0, 3).join(', ') || 'No symptoms'}</div>${s.foods.length ? `<div style="font-size:10px;color:var(--rose);margin-top:2px">Triggers: ${s.foods.slice(0, 2).join(', ')}</div>` : ''}</div>`;
+                    });
+                    h += `</div>`;
+                }
+                h += `</div></div>`;
+                sa.innerHTML = h;
+            }
+
+            else if (currentTab === 'cycles') {
+                let h = `<div class="page"><div class="card"><div class="card-title">📅 Cycle Tracker</div><div class="card-sub">Period log karo aur predictions dekho</div>
+      <div class="section-label">Naya period log karo</div>
+      <div class="grid2" style="margin-bottom:10px">
+        <div><div style="font-size:11px;color:var(--deep);margin-bottom:4px">Shuru hua</div><input type="date" id="cyc-start" value="${newCycleStart}" oninput="newCycleStart=this.value" max="${new Date().toISOString().split('T')[0]}"></div>
+        <div><div style="font-size:11px;color:var(--deep);margin-bottom:4px">Khatam hua</div><input type="date" id="cyc-end" value="${newCycleEnd}" oninput="newCycleEnd=this.value" max="${new Date().toISOString().split('T')[0]}"></div>
+      </div>
+      <button class="btn btn-primary" id="cyc-save-btn" onclick="saveCycle()">Period Log Karo 🌸</button>`;
+                if (cycles.length) {
+                    const p = predict(cycles);
+                    h += `<div style="margin-top:14px"><div class="stat-grid">
+        <div class="stat-box"><div class="stat-num">${p.avg}</div><div class="stat-label">Avg din</div></div>
+        <div class="stat-box" style="${p.irregular ? 'background:#FFDDE9;border-color:var(--rose)' : ''}"><div style="font-size:15px;font-weight:700;color:${p.irregular ? 'var(--rose)' : 'var(--green)'}">${p.irregular ? '⚠️ Irr.' : '✅ OK'}</div><div class="stat-label">Cycle</div></div>
+        <div class="stat-box"><div class="stat-num">${cycles.length}</div><div class="stat-label">Logged</div></div>
+      </div>`;
+                    if (p.next) {
+                        h += `<div style="background:var(--petal);border-radius:11px;padding:9px 13px;text-align:center;font-size:12px;font-weight:700;color:var(--deep);margin-bottom:8px">🌸 Agla period: ${p.next.toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })}</div>`;
+                    }
+                    if (p.irregular) { h += `<div class="alert-box">⚠️ <b>Irregular cycle detected!</b> Kuch cycles 21-35 din range se bahar hain. Doctor se zaroor milein.</div>`; }
+                    h += `<div style="margin-top:12px"><div class="section-label">Pichle Cycles 📋</div>`;
+                    cycles.slice(-6).reverse().forEach(c => {
+                        const irr = c.length < 21 || c.length > 35;
+                        h += `<div class="cycle-row"><div><div style="font-size:11px;font-weight:600;color:var(--rose)">${c.startDate}</div><div style="font-size:10px;color:#aaa">to ${c.endDate}</div></div><div style="text-align:right"><div class="cycle-len ${irr ? 'irr' : ''}">${c.length}<span style="font-size:10px"> din</span></div>${irr ? '<div style="font-size:9px;color:var(--rose)">⚠️ Irregular</div>' : ''}</div></div>`;
+                    });
+                    h += `</div></div>`;
+                }
+                h += `</div></div>`;
+                sa.innerHTML = h;
+            }
+
+            else if (currentTab === 'intel') {
+                const freqMap = {}, foodMap = {};
+                symptoms.forEach(log => {
+                    log.symptoms.forEach(s => { freqMap[s] = (freqMap[s] || 0) + 1 });
+                    log.foods.forEach(f => { if (!foodMap[f]) foodMap[f] = {}; log.symptoms.forEach(s => { foodMap[f][s] = (foodMap[f][s] || 0) + 1 }); });
+                });
+                const patterns = Object.entries(foodMap).map(([food, syms]) => ({ food, top: Object.entries(syms).sort((a, b) => b[1] - a[1])[0], count: Object.values(syms).reduce((a, b) => a + b, 0) })).filter(p => p.top).sort((a, b) => b.count - a.count).slice(0, 5);
+                const topSyms = Object.entries(freqMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+                let h = `<div class="page"><div class="card"><div class="card-title">🔍 Symptom Intelligence</div><div class="card-sub">Aapke food-symptom patterns</div>`;
+                if (!patterns.length && !topSyms.length) {
+                    h += `<div class="no-data"><svg width="56" height="56" viewBox="0 0 48 48" fill="none">${bearSVG('#FFD1DC')}</svg><p style="margin-top:10px">Abhi koi pattern nahi mila.<br/>Kuch aur days log karo! 🌸</p></div>`;
+                } else {
+                    if (topSyms.length) {
+                        h += `<div class="section-label" style="margin-top:4px">🏆 Top Symptoms</div>`;
+                        topSyms.forEach(([s, c]) => {
+                            const pct = Math.round(c / symptoms.length * 100);
+                            h += `<div style="margin-bottom:8px"><div style="display:flex;justify-content:space-between;font-size:11px;margin-bottom:3px"><span style="color:var(--deep);font-weight:600">${s}</span><span style="color:var(--muted)">${c}x (${pct}%)</span></div><div class="progress-bar"><div class="progress-fill" style="width:${pct}%"></div></div></div>`;
+                        });
+                    }
+                    if (patterns.length) {
+                        h += `<div class="section-label" style="margin-top:8px">🔗 Food → Symptom Patterns</div>`;
+                        patterns.forEach(p => { h += `<div class="pattern-row"><span style="font-weight:700;color:var(--rose)">${p.food}</span><span style="color:#bbb">→</span><span style="color:var(--deep)">${p.top[0]}</span><span class="tag-count">${p.top[1]}x</span></div>`; });
+                    }
+                }
+                h += `</div></div>`;
+                sa.innerHTML = h;
+            }
+
+            else if (currentTab === 'doctor') {
+                let h = `<div class="page"><div class="card"><div class="card-title">🏥 Doctor Report</div><div class="card-sub">Gynecologist ke liye professional summary</div>
+      <div class="report-field"><input type="text" id="rep-name" placeholder="Aapka naam (optional)" value="${reportName}" oninput="reportName=this.value"></div>
+      <div class="report-field"><input type="text" id="rep-age" placeholder="Aapki umar (optional)" value="${reportAge}" oninput="reportAge=this.value"></div>
+      <div class="info-box"><b style="color:var(--deep)">Report mein kya hoga:</b><ul style="margin:6px 0 0;padding-left:16px"><li>Cycle history & average length</li><li>Top symptoms with frequency</li><li>Trigger food patterns</li><li>Irregularity alerts</li><li>Next period prediction</li></ul></div>
+      <button class="btn btn-primary" onclick="generateReport()">📄 Doctor Report Download Karein</button>
+      <div class="privacy-note">🔒 Saara data sirf aapke device pe hai. Kuch bhi cloud pe nahi jayega.</div>
+    </div></div>`;
+                sa.innerHTML = h;
+            }
+
+            renderNav();
+            renderHeader();
+            document.getElementById('scroll-area').scrollTop = 0;
+        }
+
+        // ── ACTIONS ────────────────────────────────────────────────────────────────
+        function switchTab(t) { currentTab = t; renderPage() }
+
+        function toggleCheck(key, id) {
+            const ch = checklist[key] || [];
+            checklist = { ...checklist, [key]: ch.includes(id) ? ch.filter(x => x !== id) : [...ch, id] };
+            save(KEYS.checklist, checklist);
+            renderPage();
+        }
+
+        function toggleSym(btn, val, type) {
+            if (type === 'sym') {
+                selSymptoms = selSymptoms.includes(val) ? selSymptoms.filter(x => x !== val) : [...selSymptoms, val];
+                btn.className = 'chip ' + (selSymptoms.includes(val) ? 'on' : 'off');
+            } else {
+                selFoods = selFoods.includes(val) ? selFoods.filter(x => x !== val) : [...selFoods, val];
+                btn.className = 'chip ' + (selFoods.includes(val) ? 'food-on' : 'off');
+            }
+        }
+
+        function updateIntensity(v) {
+            symIntensity = +v;
+            const labels = ['', 'Bahut Halka', 'Halka', 'Theek', 'Tez', 'Bahut Tez'];
+            document.querySelectorAll('.section-label').forEach(el => { if (el.textContent.startsWith('🌡️')) el.textContent = '🌡️ Intensity: ' + labels[+v]; });
+        }
+
+        function saveSymptom() {
+            const note = document.getElementById('sym-note')?.value || '';
+            const entry = { id: Date.now(), date: new Date().toISOString().split('T')[0], symptoms: [...selSymptoms], foods: [...selFoods], note, intensity: symIntensity };
+            symptoms = [entry, ...symptoms].slice(0, 90);
+            save(KEYS.symptoms, symptoms);
+            selSymptoms = []; selFoods = []; symNote = ''; symIntensity = 3;
+            const btn = document.getElementById('sym-save-btn');
+            if (btn) { btn.textContent = '✓ Saved Ho Gaya! 🌸'; btn.className = 'btn btn-success'; setTimeout(() => renderPage(), 1500); }
+        }
+
+        function saveCycle() {
+            const s = document.getElementById('cyc-start')?.value || newCycleStart;
+            const e = document.getElementById('cyc-end')?.value || newCycleEnd;
+            if (!s || !e) return;
+            const length = Math.round((new Date(e) - new Date(s)) / 86400000);
+            if (length < 1 || length > 70) return;
+            cycles = [...cycles, { id: Date.now(), startDate: s, endDate: e, length }].sort((a, b) => new Date(a.startDate) - new Date(b.startDate)).slice(-12);
+            save(KEYS.cycles, cycles);
+            settings = { ...settings, lastPeriod: s };
+            save(KEYS.settings, settings);
+            newCycleStart = ''; newCycleEnd = '';
+            const btn = document.getElementById('cyc-save-btn');
+            if (btn) { btn.textContent = '✓ Log Ho Gaya!'; btn.className = 'btn btn-success'; setTimeout(() => renderPage(), 1500); }
+        }
+
+        function saveSetup() {
+            const d = document.getElementById('setup-date').value;
+            const l = +document.getElementById('setup-len').value;
+            if (!d) return;
+            settings = { ...settings, lastPeriod: d, cycleLength: l };
+            save(KEYS.settings, settings);
+            document.getElementById('setup-modal').style.display = 'none';
+            renderPage();
+        }
+
+        function generateReport() {
+            const n = document.getElementById('rep-name')?.value || reportName || '';
+            const a = document.getElementById('rep-age')?.value || reportAge || '';
+            const { day, phase } = getDayAndPhase();
+            const pred = predict(cycles);
+            const freqMap = {}, foodMap = {};
+            symptoms.slice(0, 30).forEach(log => {
+                log.symptoms.forEach(s => { freqMap[s] = (freqMap[s] || 0) + 1 });
+                log.foods.forEach(f => { foodMap[f] = (foodMap[f] || 0) + 1 });
+            });
+            const topSyms = Object.entries(freqMap).sort((a, b) => b[1] - a[1]).slice(0, 5);
+            const topFoods = Object.entries(foodMap).sort((a, b) => b[1] - a[1]).slice(0, 3);
+            const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"/><title>Gynecologist Report</title><style>body{font-family:Georgia,serif;margin:40px;color:#333}h1{color:#AD1457;border-bottom:2px solid #FFD1DC;padding-bottom:10px}h2{color:#E91E63;margin-top:24px;font-size:15px}.meta{background:#FFF5F5;padding:16px;border-radius:8px;margin:20px 0;border:1px solid #FFD1DC}.tag{display:inline-block;background:#FFD1DC;color:#AD1457;padding:3px 10px;border-radius:12px;margin:3px;font-size:12px}.alert{background:#FFDDE9;border:1px solid #E91E63;padding:12px;border-radius:8px;color:#AD1457}table{width:100%;border-collapse:collapse;margin-top:8px;font-size:13px}td,th{padding:8px 12px;border:1px solid #FFD1DC;text-align:left}th{background:#FFF5F5;color:#AD1457}@media print{body{margin:20px}}</style></head><body>
+<h1>🌸 Menstrual Health Report</h1>
+<div class="meta"><b>Patient Name:</b> ${n || '—'}<br/><b>Age:</b> ${a || '—'}<br/><b>Report Generated:</b> ${new Date().toLocaleDateString('en-IN', { day: 'numeric', month: 'long', year: 'numeric' })}<br/><b>Current Cycle Day:</b> Day ${day} (${PHASES[phase].name} Phase)<br/><b>Average Cycle Length:</b> ${pred.avg} days<br/>${pred.next ? `<b>Next Period Expected:</b> ${pred.next.toLocaleDateString('en-IN')}<br/>` : ''}
+<b>Irregular Cycles:</b> ${pred.irregular ? '⚠️ Yes – some cycles outside 21-35 day range' : '✅ No'}</div>
+${pred.irregular ? `<div class="alert">⚠️ <b>Note for Doctor:</b> Irregular cycle lengths detected. Some cycles were outside the normal 21-35 day range.</div>` : ''}
+<h2>📊 Symptom Frequency (Last 30 Logs)</h2>
+${topSyms.length ? `<table><tr><th>Symptom</th><th>Frequency</th></tr>${topSyms.map(([s, c]) => `<tr><td>${s}</td><td>${c} times</td></tr>`).join('')}</table>` : '<p>No symptoms logged yet.</p>'}
+<h2>🍕 Trigger Foods</h2>${topFoods.length ? topFoods.map(([f, c]) => `<span class="tag">${f} (${c}x)</span>`).join('') : '<p>No trigger foods logged yet.</p>'}
+<h2>📋 Cycle History</h2>${cycles.length ? `<table><tr><th>Start Date</th><th>Length</th><th>Status</th></tr>${cycles.slice(-6).map(c => `<tr><td>${c.startDate}</td><td>${c.length} days</td><td>${c.length < 21 || c.length > 35 ? '⚠️ Irregular' : '✅ Normal'}</td></tr>`).join('')}</table>` : '<p>No cycles logged yet.</p>'}
+<p style="margin-top:36px;font-size:11px;color:#999;border-top:1px solid #FFD1DC;padding-top:12px">Generated by Trackulation – Privacy-First Women's Health App. All data stored locally on device only.</p>
+</body></html>`;
+            const blob = new Blob([html], { type: 'text/html' });
+            const url = URL.createObjectURL(blob);
+            const a2 = document.createElement('a'); a2.href = url; a2.download = `trackulation_report_${new Date().toISOString().split('T')[0]}.html`; a2.click(); URL.revokeObjectURL(url);
+        }
+
+        // ── INIT ───────────────────────────────────────────────────────────────────
+        document.getElementById('setup-date').max = new Date().toISOString().split('T')[0];
+        if (!settings.lastPeriod) { document.getElementById('setup-modal').style.display = 'flex'; }
+        renderPage();
+    </script>
+</body>
+
+</html>
